@@ -21,10 +21,10 @@ export const useUsersStore = defineStore("users", {
       if (token) localStorage.setItem(tokenStorageKey, token);
       else localStorage.removeItem(tokenStorageKey);
     },
-    async fetchTopUsers() {
+    async fetchTopUsers(limit = 5) {
       this.loadingTopUsers = true;
       try {
-        this.topUsers = await usersService.getTop();
+        this.topUsers = await usersService.getTop(limit);
       } catch (_error) {
         this.topUsers = [];
       } finally {

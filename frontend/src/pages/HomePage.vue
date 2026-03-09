@@ -20,7 +20,8 @@ const stats = computed(() => ({
   comentariosHoy: statsStore.comentariosHoy,
   participantesHoy: statsStore.participantesHoy,
   debatesActivos: statsStore.debatesActivos,
-  votosEmitidos: statsStore.votosEmitidos
+  votosEmitidos: statsStore.votosEmitidos,
+  promedioComentariosPorDebate: statsStore.promedioComentariosPorDebate
 }));
 
 onMounted(async () => {

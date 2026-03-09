@@ -18,7 +18,8 @@ const hasStats = computed(() => {
     Number(props.stats?.comentariosHoy || 0),
     Number(props.stats?.participantesHoy || 0),
     Number(props.stats?.debatesActivos || 0),
-    Number(props.stats?.votosEmitidos || 0)
+    Number(props.stats?.votosEmitidos || 0),
+    Number(props.stats?.promedioComentariosPorDebate || 0)
   ];
   return values.some((value) => value > 0);
 });
@@ -36,12 +37,14 @@ const hasStats = computed(() => {
           </q-card-section>
           <q-card-section class="community-card-content">
             <q-list dense v-if="hasUsers">
-              <q-item v-for="user in topUsers" :key="user.id || user.username" class="voice-item">
+              <q-item v-for="user in topUsers.slice(0, 5)" :key="user.id || user.username" class="voice-item compact-row-item">
                 <q-item-section>
-                  <q-item-label class="voice-name">{{ user.username || user.name }}</q-item-label>
-                  <q-item-label caption>
-                    Índice de criterio: {{ user.reliabilityScore ?? user.reliability_score ?? user.score ?? 0 }}
-                  </q-item-label>
+                  <div class="voice-row">
+                    <span class="voice-name compact-voice-name">{{ user.username || user.name }}</span>
+                    <span class="compact-voice-score">
+                    {{ user.reliabilityScore ?? user.reliability_score ?? user.score ?? 0 }}
+                    </span>
+                  </div>
                 </q-item-section>
               </q-item>
             </q-list>
@@ -57,21 +60,25 @@ const hasStats = computed(() => {
           </q-card-section>
           <q-card-section class="community-card-content">
             <q-list dense v-if="hasStats">
-              <q-item class="stat-item">
+              <q-item class="stat-item compact-row-item">
                 <q-item-section>Comentarios hoy</q-item-section>
                 <q-item-section side>{{ stats.comentariosHoy }}</q-item-section>
               </q-item>
-              <q-item class="stat-item">
+              <q-item class="stat-item compact-row-item">
                 <q-item-section>Participantes hoy</q-item-section>
                 <q-item-section side>{{ stats.participantesHoy }}</q-item-section>
               </q-item>
-              <q-item class="stat-item">
+              <q-item class="stat-item compact-row-item">
                 <q-item-section>Debates activos</q-item-section>
                 <q-item-section side>{{ stats.debatesActivos }}</q-item-section>
               </q-item>
-              <q-item class="stat-item">
+              <q-item class="stat-item compact-row-item">
                 <q-item-section>Votos emitidos</q-item-section>
                 <q-item-section side>{{ stats.votosEmitidos }}</q-item-section>
+              </q-item>
+              <q-item class="stat-item compact-row-item">
+                <q-item-section>Promedio com/debate</q-item-section>
+                <q-item-section side>{{ stats.promedioComentariosPorDebate }}</q-item-section>
               </q-item>
             </q-list>
             <div v-else class="community-placeholder">Aún no hay datos disponibles</div>

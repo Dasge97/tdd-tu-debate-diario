@@ -1,8 +1,8 @@
 import { api } from "@/boot/axios";
 
 export const usersService = {
-  async getTop() {
-    const { data } = await api.get("/api/users/top");
+  async getTop(limit = 5) {
+    const { data } = await api.get("/api/users/top", { params: { limit } });
     return data;
   },
   async register(payload) {

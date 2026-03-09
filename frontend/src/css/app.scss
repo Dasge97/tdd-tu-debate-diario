@@ -191,7 +191,7 @@ body,
 }
 
 .community-card {
-  min-height: 188px;
+  min-height: 172px;
   display: flex;
   flex-direction: column;
   border-radius: 14px;
@@ -199,14 +199,41 @@ body,
 
 .community-card-header {
   border-bottom: 1px dashed #d5dbe7;
-  padding-top: 10px;
-  padding-bottom: 8px;
+  padding-top: 8px;
+  padding-bottom: 6px;
 }
 
 .community-card-content {
   flex: 1;
-  padding-top: 8px;
-  padding-bottom: 10px;
+  padding-top: 4px;
+  padding-bottom: 6px;
+}
+
+.compact-row-item {
+  min-height: 32px;
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+.compact-voice-name {
+  font-size: 0.92rem;
+  line-height: 1.1;
+}
+
+.voice-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 10px;
+  width: 100%;
+}
+
+.compact-voice-score {
+  font-family: "Bitter", "Georgia", serif;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #2f3c52;
+  text-align: right;
 }
 
 .community-placeholder {
