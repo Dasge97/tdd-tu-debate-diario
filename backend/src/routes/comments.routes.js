@@ -4,11 +4,11 @@ import {
   getCommentsByDebateIdController,
   voteCommentController
 } from "../controllers/comments.controller.js";
-import { requireAuth } from "../middleware/auth.middleware.js";
+import { optionalAuth, requireAuth } from "../middleware/auth.middleware.js";
 
 const commentsRouter = Router();
 
-commentsRouter.get("/:debateId", getCommentsByDebateIdController);
+commentsRouter.get("/:debateId", optionalAuth, getCommentsByDebateIdController);
 commentsRouter.post("/", requireAuth, createCommentController);
 commentsRouter.post("/:commentId/vote", requireAuth, voteCommentController);
 

@@ -4,8 +4,21 @@ import {
   searchPublicUsers,
   getTopUsers,
   getUserById,
-  updateUserProfile
+  updateUserProfile,
+  updateUserAvatar
 } from "../services/users.service.js";
+import { getAvatarPublicPath } from "../middleware/upload.middleware.js";
+
+const parseTraits = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_error) {
+    return [];
+  }
+};
 
 const toSafeUser = (user) => ({
   id: Number(user.id),
@@ -14,7 +27,12 @@ const toSafeUser = (user) => ({
   bio: user.bio || "",
   avatarUrl: user.avatar_url || "",
   location: user.location || "",
+  profileTagline: user.profile_tagline || "",
+  profileTraits: parseTraits(user.profile_traits_json),
   reliabilityScore: Number(user.reliability_score || 0),
+  role: user.role || "user",
+  status: user.status || "active",
+  isAdmin: (user.role || "user") === "admin",
   createdAt: user.created_at,
   updatedAt: user.updated_at
 });
@@ -25,6 +43,8 @@ const toPublicUser = (user) => ({
   bio: user.bio || "",
   avatarUrl: user.avatar_url || "",
   location: user.location || "",
+  profileTagline: user.profile_tagline || "",
+  profileTraits: parseTraits(user.profile_traits_json),
   reliabilityScore: Number(user.reliability_score || 0),
   createdAt: user.created_at,
   updatedAt: user.updated_at
@@ -44,7 +64,7 @@ export async function getMeController(req, res, next) {
 
 export async function updateMeController(req, res, next) {
   try {
-    const { bio = "", avatarUrl = "", location = "" } = req.body;
+    const { bio = "", avatarUrl = "", location = "", profileTagline = "", profileTraits = [] } = req.body;
     if (typeof bio !== "string" || bio.length > 280) {
       return res.status(400).json({ error: "bio debe ser texto de máximo 280 caracteres." });
     }
@@ -54,13 +74,36 @@ export async function updateMeController(req, res, next) {
     if (typeof location !== "string" || location.length > 120) {
       return res.status(400).json({ error: "location no válida." });
     }
+    if (typeof profileTagline !== "string" || profileTagline.length > 160) {
+      return res.status(400).json({ error: "profileTagline debe ser texto de máximo 160 caracteres." });
+    }
+    if (!Array.isArray(profileTraits) || profileTraits.some((item) => typeof item !== "string" || item.length > 40)) {
+      return res.status(400).json({ error: "profileTraits debe ser una lista de textos cortos." });
+    }
 
     const user = await updateUserProfile(req.auth.userId, {
       bio: bio.trim(),
       avatarUrl: avatarUrl.trim(),
-      location: location.trim()
+      location: location.trim(),
+      profileTagline: profileTagline.trim(),
+      profileTraits: profileTraits.map((item) => item.trim()).filter(Boolean).slice(0, 8)
     });
 
+    res.json(toSafeUser(user));
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function uploadMyAvatarController(req, res, next) {
+  try {
+    if (!req.file?.filename) {
+      return res.status(400).json({ error: "Debes seleccionar una imagen." });
+    }
+
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    const avatarUrl = `${baseUrl}${getAvatarPublicPath(req.file.filename)}`;
+    const user = await updateUserAvatar(req.auth.userId, avatarUrl);
     res.json(toSafeUser(user));
   } catch (error) {
     next(error);

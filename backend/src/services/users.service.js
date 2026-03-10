@@ -1,9 +1,20 @@
 import { query } from "../database/db.js";
 
+const parseJsonArray = (value, fallback = []) => {
+  if (!value) return fallback;
+  if (Array.isArray(value)) return value;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : fallback;
+  } catch (_error) {
+    return fallback;
+  }
+};
+
 export async function getUserById(id) {
   const rows = await query(
     `
-      SELECT id, username, email, bio, avatar_url, location, reliability_score, created_at, updated_at
+      SELECT id, username, email, bio, avatar_url, location, reliability_score, role, status, profile_tagline, profile_traits_json, created_at, updated_at
       FROM users
       WHERE id = ?
       LIMIT 1
@@ -16,7 +27,7 @@ export async function getUserById(id) {
 export async function getPublicUserById(id) {
   const rows = await query(
     `
-      SELECT id, username, bio, avatar_url, location, reliability_score, created_at, updated_at
+      SELECT id, username, bio, avatar_url, location, reliability_score, profile_tagline, profile_traits_json, created_at, updated_at
       FROM users
       WHERE id = ?
       LIMIT 1
@@ -29,7 +40,7 @@ export async function getPublicUserById(id) {
 export async function getPublicUserByUsername(username) {
   const rows = await query(
     `
-      SELECT id, username, bio, avatar_url, location, reliability_score, created_at, updated_at
+      SELECT id, username, bio, avatar_url, location, reliability_score, profile_tagline, profile_traits_json, created_at, updated_at
       FROM users
       WHERE username = ?
       LIMIT 1
@@ -39,14 +50,33 @@ export async function getPublicUserByUsername(username) {
   return rows[0] || null;
 }
 
-export async function updateUserProfile(userId, { bio, avatarUrl, location }) {
+export async function updateUserProfile(userId, { bio, avatarUrl, location, profileTagline, profileTraits }) {
   await query(
     `
       UPDATE users
-      SET bio = ?, avatar_url = ?, location = ?
+      SET bio = ?, avatar_url = ?, location = ?, profile_tagline = ?, profile_traits_json = ?
       WHERE id = ?
     `,
-    [bio || null, avatarUrl || null, location || null, userId]
+    [
+      bio || null,
+      avatarUrl || null,
+      location || null,
+      profileTagline || null,
+      JSON.stringify(Array.isArray(profileTraits) ? profileTraits : []),
+      userId
+    ]
+  );
+  return getUserById(userId);
+}
+
+export async function updateUserAvatar(userId, avatarUrl) {
+  await query(
+    `
+      UPDATE users
+      SET avatar_url = ?
+      WHERE id = ?
+    `,
+    [avatarUrl || null, userId]
   );
   return getUserById(userId);
 }
@@ -55,6 +85,7 @@ export async function getTopUsers(limit = 6) {
   const rows = await query(
     `
       SELECT id, username, bio, avatar_url, reliability_score, created_at
+           , profile_tagline, profile_traits_json
       FROM users
       ORDER BY reliability_score DESC, created_at ASC
       LIMIT ?
@@ -95,7 +126,7 @@ export async function searchPublicUsers({ q = "", limit = 20, page = 1 }) {
 
   const rows = await query(
     `
-      SELECT id, username, bio, avatar_url, location, reliability_score, created_at, updated_at
+      SELECT id, username, bio, avatar_url, location, reliability_score, profile_tagline, profile_traits_json, created_at, updated_at
       FROM users
       ${whereSql}
       ORDER BY reliability_score DESC, username ASC
@@ -105,7 +136,10 @@ export async function searchPublicUsers({ q = "", limit = 20, page = 1 }) {
   );
 
   return {
-    items: rows,
+    items: rows.map((row) => ({
+      ...row,
+      profile_traits_json: parseJsonArray(row.profile_traits_json, [])
+    })),
     total,
     page: safePage,
     pageSize: safeLimit,

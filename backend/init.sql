@@ -24,7 +24,11 @@ CREATE TABLE users (
   bio VARCHAR(280) NULL,
   avatar_url VARCHAR(255) NULL,
   location VARCHAR(120) NULL,
+  profile_tagline VARCHAR(160) NULL,
+  profile_traits_json JSON NULL,
   reliability_score INT NOT NULL DEFAULT 0,
+  role ENUM('user', 'admin') NOT NULL DEFAULT 'user',
+  status ENUM('active', 'suspended') NOT NULL DEFAULT 'active',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
@@ -39,6 +43,12 @@ CREATE TABLE debates (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   day_date DATE NOT NULL,
   created_by BIGINT UNSIGNED NULL,
+  author_type ENUM('ai', 'user') NOT NULL DEFAULT 'ai',
+  ai_persona_name VARCHAR(120) NULL,
+  ai_persona_label VARCHAR(160) NULL,
+  ai_persona_bio VARCHAR(255) NULL,
+  ai_persona_focus VARCHAR(180) NULL,
+  ai_persona_traits_json JSON NULL,
   PRIMARY KEY (id),
   KEY idx_debates_day_date (day_date),
   CONSTRAINT fk_debates_created_by
@@ -72,6 +82,7 @@ CREATE TABLE votes (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   user_id BIGINT UNSIGNED NOT NULL,
   comment_id BIGINT UNSIGNED NOT NULL,
+  value TINYINT NOT NULL DEFAULT 1,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_votes_user_comment (user_id, comment_id),
@@ -202,41 +213,87 @@ CREATE TABLE user_notifications (
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO users (username, email, password_hash, bio, location, reliability_score) VALUES
-('ana_debate', 'ana@example.com', '$2a$10$Y3MyZqpOEzByo7CPG1n5LewMbg4RWRJny8.1ThLriuzZnx1N.EsP6', 'Analizo debates de tecnología y trabajo.', 'Madrid', 94),
-('carlos_opinion', 'carlos@example.com', '$2a$10$YtgjFbB6a1I5JFr83tznFunEpPli71cVZk2QL5gbW9u9CsVk5oq9u', 'Me interesa política pública y ciudad.', 'Valencia', 91),
-('maria_criterio', 'maria@example.com', '$2a$10$mxnbiYW/.v45fn8kRHSh0ud5zhZjvdShxBCu3iPr8jfrxtSa/ISru', 'Debato sobre energía y economía.', 'Barcelona', 89);
+CREATE TABLE admin_audit_logs (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  admin_user_id BIGINT UNSIGNED NOT NULL,
+  action_type VARCHAR(80) NOT NULL,
+  entity_type VARCHAR(80) NOT NULL,
+  entity_id BIGINT UNSIGNED NULL,
+  payload_json JSON NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_admin_audit_logs_created (created_at),
+  KEY idx_admin_audit_logs_admin (admin_user_id),
+  CONSTRAINT fk_admin_audit_logs_admin
+    FOREIGN KEY (admin_user_id) REFERENCES users(id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO debates (title, context, day_date, created_by) VALUES
+INSERT INTO users (username, email, password_hash, bio, location, profile_tagline, profile_traits_json, reliability_score, role, status) VALUES
+('ana_debate', 'ana@example.com', '$2a$10$Y3MyZqpOEzByo7CPG1n5LewMbg4RWRJny8.1ThLriuzZnx1N.EsP6', 'Analizo debates de tecnología y trabajo.', 'Madrid', 'Analista de tecnología y trabajo', JSON_ARRAY('analítica', 'didáctica', 'ordenada'), 94, 'admin', 'active'),
+('carlos_opinion', 'carlos@example.com', '$2a$10$YtgjFbB6a1I5JFr83tznFunEpPli71cVZk2QL5gbW9u9CsVk5oq9u', 'Me interesa política pública y ciudad.', 'Valencia', 'Observador de política urbana', JSON_ARRAY('directo', 'crítico', 'práctico'), 91, 'user', 'active'),
+('maria_criterio', 'maria@example.com', '$2a$10$mxnbiYW/.v45fn8kRHSh0ud5zhZjvdShxBCu3iPr8jfrxtSa/ISru', 'Debato sobre energía y economía.', 'Barcelona', 'Perfil de energía y economía', JSON_ARRAY('sintética', 'rigurosa', 'comparativa'), 89, 'user', 'active');
+
+INSERT INTO debates (title, context, day_date, created_by, author_type, ai_persona_name, ai_persona_label, ai_persona_bio, ai_persona_focus, ai_persona_traits_json) VALUES
 (
   '¿Es viable la jornada laboral de 4 días?',
   'Cada vez más empresas prueban semanas laborales reducidas y reportan mejoras en productividad y bienestar, aunque persisten dudas sobre su aplicación en sectores con turnos continuos.',
   CURDATE(),
-  1
+  NULL,
+  'ai',
+  'Clara Editorial',
+  'Observadora de trabajo y empresa',
+  'Analiza cambios en cultura laboral, productividad y bienestar con un tono sereno y estructurado.',
+  'Le interesa cómo cambian el empleo, la empresa y la organización del tiempo.',
+  JSON_ARRAY('serena', 'contextual', 'orientada a productividad')
 ),
 (
   '¿La IA reemplazará a los programadores?',
   'Las herramientas de asistencia con IA aceleran tareas de desarrollo, pero el debate sigue abierto sobre si sustituyen empleo o si transforman el perfil técnico requerido.',
   CURDATE(),
-  2
+  NULL,
+  'ai',
+  'Marco Señal',
+  'Analista de tecnología aplicada',
+  'Suele plantear debates donde innovación, empleo y responsabilidad técnica chocan entre sí.',
+  'Cruza innovación, impacto profesional y responsabilidad tecnológica.',
+  JSON_ARRAY('técnico', 'crítico', 'anticipatorio')
 ),
 (
   '¿Debe limitarse Airbnb en grandes ciudades?',
   'Distintas ciudades estudian límites al alquiler turístico para aliviar la presión sobre el mercado residencial y reducir el encarecimiento del alquiler de larga duración.',
   CURDATE(),
-  3
+  NULL,
+  'ai',
+  'Sofía Plaza',
+  'Editora de ciudad y vivienda',
+  'Observa el impacto urbano de las plataformas y cómo cambian la vida cotidiana en los barrios.',
+  'Sigue temas de vivienda, ciudad y tensiones entre mercado y vecindad.',
+  JSON_ARRAY('urbana', 'cívica', 'equilibrada')
 ),
 (
   '¿Es necesaria la energía nuclear para la transición energética?',
   'En plena descarbonización, algunos expertos defienden la nuclear como soporte estable de la red, mientras otros cuestionan sus costes y gestión de residuos.',
   CURDATE(),
-  1
+  NULL,
+  'ai',
+  'Irene Vector',
+  'Curadora de energía y clima',
+  'Construye debates donde seguridad, coste, estabilidad de red y sostenibilidad compiten en la misma conversación.',
+  'Se centra en transición energética, fiabilidad del sistema y coste político.',
+  JSON_ARRAY('técnica', 'sistémica', 'comparativa')
 ),
 (
   '¿Deben regularse las redes sociales?',
   'La discusión enfrenta protección frente a desinformación y riesgos en salud mental con la necesidad de preservar la libertad de expresión y la innovación digital.',
   CURDATE(),
-  2
+  NULL,
+  'ai',
+  'Nora Prisma',
+  'Observadora de cultura digital',
+  'Formula preguntas sobre libertad, plataformas y convivencia online desde una mirada cívica.',
+  'Explora cómo las plataformas alteran la conversación pública y la convivencia digital.',
+  JSON_ARRAY('cultural', 'cívica', 'reflexiva')
 );
 
 INSERT INTO comments (debate_id, user_id, parent_id, content, score) VALUES
@@ -246,12 +303,12 @@ INSERT INTO comments (debate_id, user_id, parent_id, content, score) VALUES
 (2, 1, 3, 'Totalmente de acuerdo: acelera, pero no reemplaza criterio técnico.', 5),
 (5, 2, NULL, 'Regular sí, pero con límites claros para no censurar debate legítimo.', 9);
 
-INSERT INTO votes (user_id, comment_id) VALUES
-(2, 1),
-(3, 1),
-(1, 3),
-(2, 3),
-(3, 5);
+INSERT INTO votes (user_id, comment_id, value) VALUES
+(2, 1, 1),
+(3, 1, 1),
+(1, 3, 1),
+(2, 3, 1),
+(3, 5, 1);
 
 INSERT INTO positions (user_id, debate_id, position) VALUES
 (1, 1, 'support'),

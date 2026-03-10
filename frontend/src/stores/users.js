@@ -13,7 +13,8 @@ export const useUsersStore = defineStore("users", {
     authError: ""
   }),
   getters: {
-    isAuthenticated: (state) => Boolean(state.token)
+    isAuthenticated: (state) => Boolean(state.token),
+    isAdmin: (state) => Boolean(state.me?.isAdmin || state.me?.role === "admin")
   },
   actions: {
     setToken(token) {
@@ -45,6 +46,10 @@ export const useUsersStore = defineStore("users", {
     },
     async updateMe(payload) {
       this.me = await usersService.updateMe(payload);
+      return this.me;
+    },
+    async uploadAvatar(file) {
+      this.me = await usersService.uploadAvatar(file);
       return this.me;
     },
     async fetchProfileByUsername(username) {

@@ -39,7 +39,7 @@ onMounted(async () => {
     <CommunityTodaySection :top-users="usersStore.topUsers" :stats="stats" />
 
     <div class="q-px-md q-pb-lg home-grid">
-      <h2 class="section-title q-mt-none q-mb-md">Debates de hoy</h2>
+      <h2 class="section-title section-title-centered q-mt-none q-mb-md">Debates de hoy</h2>
 
       <q-banner v-if="debatesStore.error" class="bg-red-1 text-negative q-mb-md" rounded>
         {{ debatesStore.error }}

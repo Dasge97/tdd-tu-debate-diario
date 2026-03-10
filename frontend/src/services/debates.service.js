@@ -17,8 +17,8 @@ export const debatesService = {
     const { data } = await api.post("/api/comments", payload);
     return data;
   },
-  async voteComment(commentId) {
-    const { data } = await api.post(`/api/comments/${commentId}/vote`);
+  async voteComment(commentId, value = 1) {
+    const { data } = await api.post(`/api/comments/${commentId}/vote`, { value });
     return data;
   },
   async postPosition(payload) {

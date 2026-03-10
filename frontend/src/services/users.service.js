@@ -24,6 +24,16 @@ export const usersService = {
     const { data } = await api.put("/api/users/me", payload);
     return data;
   },
+  async uploadAvatar(file) {
+    const formData = new FormData();
+    formData.append("avatar", file);
+    const { data } = await api.post("/api/users/me/avatar", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data"
+      }
+    });
+    return data;
+  },
   async getByUsername(username) {
     const { data } = await api.get(`/api/users/username/${encodeURIComponent(username)}`);
     return data;

@@ -1,8 +1,10 @@
 <script setup>
 import { computed, nextTick, ref, watch } from "vue";
+import { useRouter } from "vue-router";
 import { useChatStore } from "@/stores/chat";
 import { useUsersStore } from "@/stores/users";
 
+const router = useRouter();
 const chatStore = useChatStore();
 const usersStore = useUsersStore();
 
@@ -16,13 +18,22 @@ const activeMessages = computed(() => chatStore.activeMessages || []);
 
 const openPanel = async () => {
   chatStore.panelOpen = true;
+  chatStore.panelMinimized = false;
   if (!chatStore.activeConversationId && orderedConversations.value.length > 0) {
     await selectConversation(orderedConversations.value[0].id);
   }
 };
 
-const togglePanel = () => {
-  chatStore.panelOpen = !chatStore.panelOpen;
+const minimizePanel = () => {
+  chatStore.sendTyping(false);
+  chatStore.panelOpen = true;
+  chatStore.panelMinimized = true;
+};
+
+const closePanel = () => {
+  chatStore.sendTyping(false);
+  chatStore.panelOpen = false;
+  chatStore.panelMinimized = false;
 };
 
 const selectConversation = async (conversationId) => {
@@ -97,12 +108,17 @@ watch(
   }
 );
 
+const goProfile = (username) => {
+  if (!username) return;
+  router.push({ name: "perfil", params: { username } });
+};
+
 </script>
 
 <template>
   <div v-if="isAuthenticated" class="chat-dock">
     <q-btn
-      v-if="!chatStore.panelOpen"
+      v-if="!chatStore.panelOpen || chatStore.panelMinimized"
       color="primary"
       unelevated
       class="chat-open-btn"
@@ -120,10 +136,14 @@ watch(
     </q-btn>
 
     <q-card v-else flat bordered class="debate-surface chat-panel">
-      <q-card-section class="chat-header row items-center no-wrap">
-        <div class="text-subtitle2 text-weight-bold">Chat</div>
-        <div class="col-grow" />
-        <q-btn flat dense round icon="remove" @click="togglePanel" />
+      <q-card-section class="chat-header">
+        <div class="chat-header-bar">
+          <div class="text-subtitle2 text-weight-bold">Chat</div>
+          <div class="chat-header-actions">
+            <button type="button" class="chat-header-btn chat-header-icon-btn" aria-label="Minimizar chat" @click="minimizePanel">_</button>
+            <button type="button" class="chat-header-btn chat-header-icon-btn chat-header-btn-close" aria-label="Cerrar chat" @click="closePanel">X</button>
+          </div>
+        </div>
       </q-card-section>
 
       <div class="chat-body">
@@ -138,7 +158,7 @@ watch(
             <div class="chat-conversation-top">
               <span class="row items-center no-wrap">
                 <span class="chat-online-dot" :class="{ online: chatStore.onlineByUserId[Number(conversation.peer.id)] }"></span>
-                <span>@{{ conversation.peer.username }}</span>
+                <span class="chat-link-username" @click.stop="goProfile(conversation.peer.username)">@{{ conversation.peer.username }}</span>
               </span>
               <span v-if="conversation.unreadCount" class="chat-unread">{{ conversation.unreadCount }}</span>
             </div>
@@ -155,10 +175,17 @@ watch(
           <template v-else>
             <div class="chat-peer-head">
               <q-avatar size="28px" color="primary" text-color="white">
-                {{ chatStore.activeConversation.peer.username.slice(0, 1).toUpperCase() }}
+                <img
+                  v-if="chatStore.activeConversation.peer.avatarUrl"
+                  :src="chatStore.activeConversation.peer.avatarUrl"
+                  :alt="`Avatar de ${chatStore.activeConversation.peer.username}`"
+                />
+                <span v-else>{{ chatStore.activeConversation.peer.username.slice(0, 1).toUpperCase() }}</span>
               </q-avatar>
               <div class="q-ml-sm column">
-                <span class="text-weight-medium">@{{ chatStore.activeConversation.peer.username }}</span>
+                <span class="text-weight-medium chat-link-username" @click="goProfile(chatStore.activeConversation.peer.username)">
+                  @{{ chatStore.activeConversation.peer.username }}
+                </span>
                 <span class="chat-presence" :class="{ online: peerIsOnline }">
                   {{ peerIsOnline ? "en línea" : "desconectado" }}
                 </span>

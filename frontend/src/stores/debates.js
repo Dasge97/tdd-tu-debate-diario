@@ -1,3 +1,4 @@
+import { nextTick } from "vue";
 import { defineStore } from "pinia";
 import { debatesService } from "@/services/debates.service";
 
@@ -50,13 +51,60 @@ export const useDebatesStore = defineStore("debates", {
       this.commentsByDebate[debateId] = [...current, created];
       return created;
     },
-    async voteComment({ debateId, commentId }) {
-      const updated = await debatesService.voteComment(commentId);
+    async voteComment({ debateId, commentId, value = 1 }) {
       const current = this.commentsByDebate[debateId] || [];
-      this.commentsByDebate[debateId] = current.map((comment) =>
-        Number(comment.id) === Number(commentId) ? { ...comment, score: Number(updated.score || comment.score) } : comment
-      );
-      return updated;
+      const previousComments = current.map((comment) => ({ ...comment }));
+      const normalizedValue = Number(value) < 0 ? -1 : 1;
+
+      this.commentsByDebate[debateId] = current.map((comment) => {
+        if (Number(comment.id) !== Number(commentId)) return comment;
+
+        const previousVote = Number(comment.currentUserVote || 0);
+        if (previousVote === normalizedValue) {
+          return comment;
+        }
+
+        let upvotes = Number(comment.upvotes || 0);
+        let downvotes = Number(comment.downvotes || 0);
+        let score = Number(comment.score || 0);
+
+        if (previousVote > 0) upvotes = Math.max(0, upvotes - 1);
+        if (previousVote < 0) downvotes = Math.max(0, downvotes - 1);
+
+        if (normalizedValue > 0) upvotes += 1;
+        if (normalizedValue < 0) downvotes += 1;
+
+        score += normalizedValue - previousVote;
+
+        return {
+          ...comment,
+          score,
+          upvotes,
+          downvotes,
+          currentUserVote: normalizedValue
+        };
+      });
+
+      await nextTick();
+
+      try {
+        const updated = await debatesService.voteComment(commentId, normalizedValue);
+        this.commentsByDebate[debateId] = (this.commentsByDebate[debateId] || []).map((comment) =>
+          Number(comment.id) === Number(commentId)
+            ? {
+                ...comment,
+                score: Number(updated.score ?? comment.score ?? 0),
+                upvotes: Number(updated.upvotes ?? comment.upvotes ?? 0),
+                downvotes: Number(updated.downvotes ?? comment.downvotes ?? 0),
+                currentUserVote: Number(updated.currentUserVote ?? normalizedValue)
+              }
+            : comment
+        );
+        return updated;
+      } catch (error) {
+        this.commentsByDebate[debateId] = previousComments;
+        throw error;
+      }
     },
     async setPosition({ debateId, position }) {
       await debatesService.postPosition({ debateId, position });

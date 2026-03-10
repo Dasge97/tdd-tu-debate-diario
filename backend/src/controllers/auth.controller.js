@@ -14,7 +14,21 @@ const toSafeUser = (user) => ({
   bio: user.bio || "",
   avatarUrl: user.avatar_url || "",
   location: user.location || "",
+  profileTagline: user.profile_tagline || "",
+  profileTraits: (() => {
+    if (!user.profile_traits_json) return [];
+    if (Array.isArray(user.profile_traits_json)) return user.profile_traits_json;
+    try {
+      const parsed = JSON.parse(user.profile_traits_json);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (_error) {
+      return [];
+    }
+  })(),
   reliabilityScore: Number(user.reliability_score || 0),
+  role: user.role || "user",
+  status: user.status || "active",
+  isAdmin: (user.role || "user") === "admin",
   createdAt: user.created_at,
   updatedAt: user.updated_at
 });
@@ -75,6 +89,9 @@ export async function loginController(req, res, next) {
     const passwordOk = await verifyPassword(password, user.password_hash);
     if (!passwordOk) {
       return res.status(401).json({ error: "Credenciales inválidas." });
+    }
+    if (user.status === "suspended") {
+      return res.status(403).json({ error: "Tu cuenta está suspendida." });
     }
 
     const { token } = createAuthToken(user.id);

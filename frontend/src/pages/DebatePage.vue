@@ -2,30 +2,36 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import DebateCard from "@/components/DebateCard.vue";
-import RightSidebar from "@/components/RightSidebar.vue";
+import DebateCommentItem from "@/components/DebateCommentItem.vue";
 import { useDebatesStore } from "@/stores/debates";
 import { useUsersStore } from "@/stores/users";
-import { useStatsStore } from "@/stores/stats";
+import { useToastStore } from "@/stores/toast";
 
 const route = useRoute();
 const router = useRouter();
 const debatesStore = useDebatesStore();
 const usersStore = useUsersStore();
-const statsStore = useStatsStore();
+const toastStore = useToastStore();
 
 const debateId = computed(() => Number(route.params.id));
 const newComment = ref("");
 const position = ref("");
 const commentError = ref("");
+const activeReplyId = ref(null);
+const replyError = ref("");
 
 const debate = computed(() => debatesStore.byId[debateId.value]);
 const comments = computed(() => debatesStore.commentsByDebate[debateId.value] || []);
-const stats = computed(() => ({
-  comentariosHoy: statsStore.comentariosHoy,
-  participantesHoy: statsStore.participantesHoy,
-  debatesActivos: statsStore.debatesActivos,
-  votosEmitidos: statsStore.votosEmitidos
-}));
+const commentsByParent = computed(() => {
+  const map = {};
+  comments.value.forEach((comment) => {
+    const key = comment.parentId ?? "root";
+    if (!map[key]) map[key] = [];
+    map[key].push(comment);
+  });
+  return map;
+});
+const rootComments = computed(() => commentsByParent.value.root || []);
 
 const load = async () => {
   if (!Number.isInteger(debateId.value) || debateId.value <= 0) {
@@ -35,16 +41,15 @@ const load = async () => {
   await Promise.all([
     debatesStore.fetchToday(),
     debatesStore.fetchDebate(debateId.value),
-    debatesStore.fetchComments(debateId.value),
-    usersStore.fetchTopUsers()
+    debatesStore.fetchComments(debateId.value)
   ]);
-  statsStore.computeFromDebates(debatesStore.today, usersStore.topUsers);
 };
 
 const submitComment = async () => {
   commentError.value = "";
   if (!usersStore.isAuthenticated) {
     commentError.value = "Debes iniciar sesión para comentar.";
+    toastStore.info(commentError.value);
     return;
   }
   if (!newComment.value.trim()) {
@@ -57,33 +62,82 @@ const submitComment = async () => {
       content: newComment.value.trim()
     });
     newComment.value = "";
+    commentError.value = "";
   } catch (error) {
     commentError.value = error?.response?.data?.error || "No se pudo publicar el comentario.";
+    toastStore.error(commentError.value);
+    commentError.value = "";
+  }
+};
+
+const openReply = (commentId) => {
+  if (!usersStore.isAuthenticated) {
+    toastStore.info("Debes iniciar sesión para responder comentarios.");
+    return;
+  }
+  replyError.value = "";
+  activeReplyId.value = Number(commentId);
+};
+
+const cancelReply = () => {
+  activeReplyId.value = null;
+  replyError.value = "";
+};
+
+const submitReply = async ({ parentId, content }) => {
+  replyError.value = "";
+  if (!usersStore.isAuthenticated) {
+    replyError.value = "Debes iniciar sesión para responder.";
+    return;
+  }
+  if (!content.trim()) {
+    replyError.value = "Escribe una respuesta antes de enviar.";
+    return;
+  }
+  try {
+    await debatesStore.createComment({
+      debateId: debateId.value,
+      parentId,
+      content: content.trim()
+    });
+    activeReplyId.value = null;
+    replyError.value = "";
+  } catch (error) {
+    replyError.value = error?.response?.data?.error || "No se pudo publicar la respuesta.";
+    toastStore.error(replyError.value);
+    replyError.value = "";
   }
 };
 
 const submitPosition = async () => {
   if (!usersStore.isAuthenticated) {
     commentError.value = "Debes iniciar sesión para elegir una posición.";
+    toastStore.info(commentError.value);
     return;
   }
   if (!position.value) return;
   try {
     await debatesStore.setPosition({ debateId: debateId.value, position: position.value });
+    commentError.value = "";
   } catch (error) {
     commentError.value = error?.response?.data?.error || "No se pudo registrar tu posición.";
+    toastStore.error(commentError.value);
+    commentError.value = "";
   }
 };
 
-const voteComment = async (commentId) => {
+const voteComment = async (commentId, value) => {
   if (!usersStore.isAuthenticated) {
-    commentError.value = "Debes iniciar sesión para votar comentarios.";
+    toastStore.info("Debes iniciar sesión para votar comentarios.");
     return;
   }
   try {
-    await debatesStore.voteComment({ debateId: debateId.value, commentId });
+    await debatesStore.voteComment({ debateId: debateId.value, commentId, value });
+    commentError.value = "";
   } catch (error) {
     commentError.value = error?.response?.data?.error || "No se pudo votar el comentario.";
+    toastStore.error(commentError.value);
+    commentError.value = "";
   }
 };
 
@@ -93,70 +147,171 @@ onMounted(load);
 
 <template>
   <q-page>
-    <div class="row q-col-gutter-lg q-px-md q-pb-lg">
+    <div class="row q-col-gutter-lg q-px-md q-pb-lg debate-page-wrap">
       <div class="col-12 col-lg-8">
-        <q-btn flat icon="arrow_back" label="Volver" class="q-mb-md" @click="router.push({ name: 'home' })" />
-
         <q-skeleton v-if="debatesStore.loadingDebate" type="rect" height="220px" />
-        <DebateCard v-else-if="debate" :debate="debate" :show-action="false" />
+        <DebateCard
+          v-else-if="debate"
+          :debate="debate"
+          :show-action="false"
+          :show-back="true"
+          @back="router.push({ name: 'home' })"
+        />
 
-        <q-card flat bordered class="q-mb-md">
+        <q-card flat bordered class="q-mb-md debate-surface debate-position-card">
           <q-card-section>
-            <div class="text-subtitle1 text-weight-medium q-mb-sm">Tu posición en el debate</div>
-            <q-btn-toggle
-              v-model="position"
-              spread
-              unelevated
-              toggle-color="primary"
-              :options="[
-                { label: 'A favor', value: 'support' },
-                { label: 'En contra', value: 'oppose' },
-                { label: 'Neutral', value: 'neutral' }
-              ]"
-            />
-            <q-btn class="q-mt-sm" color="primary" unelevated label="Guardar posición" @click="submitPosition" />
+            <div class="text-subtitle1 text-weight-medium q-mb-md">Tu posición en el debate</div>
+            <div class="debate-position-grid">
+              <button
+                type="button"
+                class="debate-position-option"
+                :class="{ active: position === 'support', support: true }"
+                @click="position = 'support'"
+              >
+                <span class="debate-position-head">
+                  <span class="debate-position-title">A favor</span>
+                  <span class="debate-position-pill"></span>
+                </span>
+                <span class="debate-position-copy">Apoyas la propuesta o ves más beneficios.</span>
+              </button>
+              <button
+                type="button"
+                class="debate-position-option"
+                :class="{ active: position === 'oppose', oppose: true }"
+                @click="position = 'oppose'"
+              >
+                <span class="debate-position-head">
+                  <span class="debate-position-title">En contra</span>
+                  <span class="debate-position-pill"></span>
+                </span>
+                <span class="debate-position-copy">No compartes la medida o ves más riesgos.</span>
+              </button>
+              <button
+                type="button"
+                class="debate-position-option"
+                :class="{ active: position === 'neutral', neutral: true }"
+                @click="position = 'neutral'"
+              >
+                <span class="debate-position-head">
+                  <span class="debate-position-title">Neutral</span>
+                  <span class="debate-position-pill"></span>
+                </span>
+                <span class="debate-position-copy">Aún no tomas postura o ves equilibrio.</span>
+              </button>
+            </div>
+            <div class="debate-position-actions">
+              <q-btn class="q-mt-sm" color="primary" unelevated label="Guardar posición" @click="submitPosition" />
+            </div>
           </q-card-section>
         </q-card>
 
-        <q-card flat bordered class="q-mb-md">
+        <q-card flat bordered class="q-mb-md debate-surface debate-comment-form-card">
           <q-card-section>
             <div class="text-subtitle1 text-weight-medium q-mb-sm">Comentarios</div>
-            <q-input v-model="newComment" type="textarea" outlined autogrow placeholder="Escribe tu comentario" />
-            <div v-if="commentError" class="text-negative text-caption q-mt-sm">{{ commentError }}</div>
-            <q-btn class="q-mt-sm" color="primary" unelevated label="Publicar comentario" @click="submitComment" />
+            <q-input
+              v-model="newComment"
+              type="textarea"
+              outlined
+              autogrow
+              class="debate-comment-input"
+              placeholder="Escribe tu comentario"
+            />
+            <div class="debate-comment-form-actions">
+              <q-btn class="q-mt-sm" color="primary" unelevated label="Publicar comentario" @click="submitComment" />
+            </div>
           </q-card-section>
         </q-card>
 
-        <q-list bordered separator>
-          <q-item v-for="comment in comments" :key="comment.id">
-            <q-item-section>
-              <q-item-label class="text-weight-medium">@{{ comment.username }}</q-item-label>
-              <q-item-label caption>{{ comment.content }}</q-item-label>
-            </q-item-section>
-            <q-item-section side>
-              <div class="row items-center q-gutter-xs no-wrap">
-                <q-chip dense color="grey-3" text-color="dark">+{{ comment.score }}</q-chip>
-                <q-btn
-                  flat
-                  dense
-                  size="sm"
-                  color="primary"
-                  icon="thumb_up"
-                  @click="voteComment(comment.id)"
-                />
-              </div>
-            </q-item-section>
-          </q-item>
-          <q-item v-if="comments.length === 0">
-            <q-item-section>
-              <q-item-label caption>Todavía no hay comentarios en este debate.</q-item-label>
-            </q-item-section>
-          </q-item>
-        </q-list>
+        <div class="debate-comments-list">
+          <DebateCommentItem
+            v-for="comment in rootComments"
+            :key="comment.id"
+            :comment="comment"
+            :children-map="commentsByParent"
+            :depth="0"
+            :is-last="comment.id === rootComments[rootComments.length - 1]?.id"
+            :active-reply-id="activeReplyId"
+            :reply-error="replyError"
+            :is-authenticated="usersStore.isAuthenticated"
+            @vote="voteComment"
+            @reply="openReply"
+            @cancel-reply="cancelReply"
+            @submit-reply="submitReply"
+          />
+
+          <q-card v-if="comments.length === 0" flat bordered class="debate-surface">
+            <q-card-section class="text-grey-7">
+              Todavía no hay comentarios en este debate.
+            </q-card-section>
+          </q-card>
+        </div>
       </div>
 
       <div class="col-12 col-lg-4">
-        <RightSidebar :top-users="usersStore.topUsers" :stats="stats" />
+        <div class="q-gutter-md">
+          <q-card flat bordered class="debate-surface side-panel">
+            <q-card-section>
+              <div class="text-overline text-grey-7 q-mb-sm panel-heading">Sobre el autor</div>
+              <div v-if="debate?.author" class="debate-author-profile">
+                <div class="debate-author-topline">
+                  <q-avatar class="debate-author-avatar" size="60px" color="primary" text-color="white">
+                    <img
+                      v-if="debate.author.avatarUrl"
+                      :src="debate.author.avatarUrl"
+                      :alt="`Avatar de ${debate.author.name}`"
+                    />
+                    <span v-else>{{ debate.author.name?.slice(0, 1)?.toUpperCase() || "T" }}</span>
+                  </q-avatar>
+                  <div class="debate-author-main">
+                    <div class="debate-author-kicker">
+                      {{ debate.author.type === 'ai' ? 'Perfil editorial' : 'Perfil autor' }}
+                    </div>
+                    <div
+                      class="debate-author-name"
+                      :class="{ 'cursor-pointer': debate.author.type === 'user' }"
+                      @click="debate.author.type === 'user' ? router.push({ name: 'perfil', params: { username: debate.author.name } }) : null"
+                    >
+                      {{ debate.author.type === 'user' ? `@${debate.author.name}` : debate.author.name }}
+                    </div>
+                    <div class="debate-author-label">{{ debate.author.label }}</div>
+                  </div>
+                </div>
+
+                <div class="debate-author-focus">
+                  {{ debate.author.focus || debate.author.label }}
+                </div>
+
+                <div class="debate-author-bio">
+                  {{ debate.author.bio }}
+                </div>
+
+                <div v-if="debate.author.traits?.length" class="debate-author-traits">
+                  <span v-for="trait in debate.author.traits" :key="trait" class="debate-author-trait">
+                    {{ trait }}
+                  </span>
+                </div>
+
+                <div class="debate-author-meta">
+                  <span>{{ debate.author.type === 'ai' ? 'Fuente: IA editorial' : 'Fuente: usuario' }}</span>
+                  <span v-if="debate.author.location">{{ debate.author.location }}</span>
+                  <span v-if="debate.author.type === 'user'">Índice {{ debate.author.reliabilityScore || 0 }}</span>
+                </div>
+              </div>
+              <div v-else class="text-grey-7">Sin información de autor disponible.</div>
+            </q-card-section>
+          </q-card>
+
+          <q-card flat bordered class="debate-surface side-panel">
+            <q-card-section>
+              <div class="text-overline text-grey-7 q-mb-sm panel-heading">Antes de comentar</div>
+              <div class="debate-guidelines-list">
+                <div class="debate-guideline-item">Aporta una razón concreta, no solo una postura.</div>
+                <div class="debate-guideline-item">Responde a ideas, no a personas.</div>
+                <div class="debate-guideline-item">Si dudas, explica qué información te falta.</div>
+              </div>
+            </q-card-section>
+          </q-card>
+        </div>
       </div>
     </div>
   </q-page>

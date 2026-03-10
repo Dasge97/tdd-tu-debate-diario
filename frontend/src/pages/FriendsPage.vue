@@ -1,9 +1,11 @@
 <script setup>
 import { onMounted } from "vue";
+import { useRouter } from "vue-router";
 import { useFriendsStore } from "@/stores/friends";
 import { useUsersStore } from "@/stores/users";
 import { useChatStore } from "@/stores/chat";
 
+const router = useRouter();
 const friendsStore = useFriendsStore();
 const usersStore = useUsersStore();
 const chatStore = useChatStore();
@@ -12,6 +14,10 @@ onMounted(async () => {
   if (!usersStore.isAuthenticated) return;
   await Promise.all([friendsStore.fetchFriends(), friendsStore.fetchRequests()]);
 });
+
+const goProfile = (username) => {
+  router.push({ name: "perfil", params: { username } });
+};
 </script>
 
 <template>
@@ -30,8 +36,14 @@ onMounted(async () => {
           </q-card-section>
           <q-list separator>
             <q-item v-for="request in friendsStore.requests" :key="request.id">
+              <q-item-section avatar>
+                <q-avatar size="36px" color="primary" text-color="white">
+                  <img v-if="request.user.avatarUrl" :src="request.user.avatarUrl" :alt="`Avatar de ${request.user.username}`" />
+                  <span v-else>{{ (request.user.username || '?').slice(0, 1).toUpperCase() }}</span>
+                </q-avatar>
+              </q-item-section>
               <q-item-section>
-                <q-item-label>@{{ request.user.username }}</q-item-label>
+                <q-item-label class="cursor-pointer" @click="goProfile(request.user.username)">@{{ request.user.username }}</q-item-label>
                 <q-item-label caption>{{ request.user.bio || 'Sin bio' }}</q-item-label>
               </q-item-section>
               <q-item-section side>
@@ -57,8 +69,14 @@ onMounted(async () => {
           </q-card-section>
           <q-list separator>
             <q-item v-for="friend in friendsStore.friends" :key="friend.id">
+              <q-item-section avatar>
+                <q-avatar size="36px" color="primary" text-color="white">
+                  <img v-if="friend.avatarUrl" :src="friend.avatarUrl" :alt="`Avatar de ${friend.username}`" />
+                  <span v-else>{{ (friend.username || '?').slice(0, 1).toUpperCase() }}</span>
+                </q-avatar>
+              </q-item-section>
               <q-item-section>
-                <q-item-label>@{{ friend.username }}</q-item-label>
+                <q-item-label class="cursor-pointer" @click="goProfile(friend.username)">@{{ friend.username }}</q-item-label>
                 <q-item-label caption>{{ friend.bio || 'Sin bio' }}</q-item-label>
               </q-item-section>
               <q-item-section side>

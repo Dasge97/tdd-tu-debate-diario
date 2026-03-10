@@ -27,6 +27,7 @@ import {
   QChip,
   QSelect,
   QAvatar,
+  QFile,
   QPagination,
   QMenu,
   QBadge,
@@ -42,6 +43,7 @@ import "@fontsource/ibm-plex-sans/latin-500.css";
 import "@fontsource/ibm-plex-sans/latin-700.css";
 import "@fontsource/bitter/latin-500.css";
 import "@fontsource/bitter/latin-700.css";
+import "bootstrap/dist/css/bootstrap.min.css";
 import "quasar/src/css/index.sass";
 import "@quasar/extras/material-icons/material-icons.css";
 import "./css/app.scss";
@@ -77,6 +79,7 @@ app.use(Quasar, {
     QChip,
     QSelect,
     QAvatar,
+    QFile,
     QPagination,
     QMenu,
     QBadge,

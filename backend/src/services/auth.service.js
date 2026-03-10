@@ -9,7 +9,8 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
 export async function findUserByEmail(email) {
   const rows = await query(
     `
-      SELECT id, username, email, password_hash, bio, avatar_url, location, reliability_score, created_at, updated_at
+      SELECT id, username, email, password_hash, bio, avatar_url, location, reliability_score, role, status, created_at, updated_at
+           , profile_tagline, profile_traits_json
       FROM users
       WHERE email = ?
       LIMIT 1
@@ -36,21 +37,34 @@ export async function createUser({ username, email, password }) {
   const passwordHash = await bcrypt.hash(password, 10);
   const result = await query(
     `
-      INSERT INTO users (username, email, password_hash, reliability_score)
-      VALUES (?, ?, ?, 0)
+      INSERT INTO users (username, email, password_hash, reliability_score, role, status)
+      VALUES (?, ?, ?, 0, 'user', 'active')
     `,
     [username, email, passwordHash]
   );
 
   const rows = await query(
     `
-      SELECT id, username, email, bio, avatar_url, location, reliability_score, created_at, updated_at
+      SELECT id, username, email, bio, avatar_url, location, reliability_score, role, status, profile_tagline, profile_traits_json, created_at, updated_at
       FROM users
       WHERE id = ?
     `,
     [Number(result.insertId)]
   );
   return rows[0];
+}
+
+export async function findUserById(userId) {
+  const rows = await query(
+    `
+      SELECT id, username, email, bio, avatar_url, location, reliability_score, role, status, profile_tagline, profile_traits_json, created_at, updated_at
+      FROM users
+      WHERE id = ?
+      LIMIT 1
+    `,
+    [userId]
+  );
+  return rows[0] || null;
 }
 
 export async function verifyPassword(plainTextPassword, passwordHash) {

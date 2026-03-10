@@ -27,13 +27,11 @@ const hasStats = computed(() => {
 
 <template>
   <section class="community-section q-px-md q-pb-lg">
-    <h2 class="section-title q-mt-none q-mb-md">La comunidad hoy</h2>
-
     <div class="row q-col-gutter-md items-stretch">
       <div class="col-12 col-md-6 community-col">
         <q-card flat bordered class="debate-surface community-card full-width">
           <q-card-section class="community-card-header">
-            <div class="text-overline text-grey-7 panel-heading">Voces con criterio</div>
+            <div class="text-grey-9 panel-heading community-card-title">Voces con criterio</div>
           </q-card-section>
           <q-card-section class="community-card-content">
             <q-list dense v-if="hasUsers">
@@ -56,7 +54,7 @@ const hasStats = computed(() => {
       <div class="col-12 col-md-6 community-col">
         <q-card flat bordered class="debate-surface community-card full-width">
           <q-card-section class="community-card-header">
-            <div class="text-overline text-grey-7 panel-heading">Actividad del día</div>
+            <div class="text-grey-9 panel-heading community-card-title">Actividad del día</div>
           </q-card-section>
           <q-card-section class="community-card-content">
             <q-list dense v-if="hasStats">

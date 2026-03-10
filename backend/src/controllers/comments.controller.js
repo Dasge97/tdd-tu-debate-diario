@@ -19,7 +19,7 @@ export async function getCommentsByDebateIdController(req, res, next) {
       return res.status(400).json({ error: "El id del debate no es válido." });
     }
 
-    const comments = await getCommentsByDebateId(debateId);
+    const comments = await getCommentsByDebateId(debateId, req.auth?.userId || null);
     res.json(comments);
   } catch (error) {
     next(error);
@@ -50,12 +50,16 @@ export async function createCommentController(req, res, next) {
 
     res.status(201).json({
       id: Number(comment.id),
-      debateId: Number(comment.debate_id),
-      userId: Number(comment.user_id),
-      parentId: comment.parent_id ? Number(comment.parent_id) : null,
+      debateId: Number(comment.debateId),
+      userId: Number(comment.userId),
+      username: comment.username,
+      parentId: comment.parentId,
       content: comment.content,
-      createdAt: comment.created_at,
-      score: Number(comment.score)
+      createdAt: comment.createdAt,
+      score: Number(comment.score),
+      upvotes: Number(comment.upvotes || 0),
+      downvotes: Number(comment.downvotes || 0),
+      currentUserVote: Number(comment.currentUserVote || 0)
     });
   } catch (error) {
     next(error);
@@ -71,19 +75,25 @@ export async function voteCommentController(req, res, next) {
 
     const updated = await voteComment({
       commentId,
-      userId: req.auth.userId
+      userId: req.auth.userId,
+      value: Number(req.body?.value || 1)
     });
 
-    const ownerId = Number(updated.user_id);
+    const ownerId = Number(updated.userId);
     if (ownerId !== Number(req.auth.userId)) {
+      const voteValue = Number(req.body?.value || 1) < 0 ? -1 : 1;
       const notification = await createNotification(ownerId, {
         type: "comment_vote",
-        title: "Nuevo voto en tu comentario",
-        body: "Alguien ha valorado positivamente uno de tus comentarios.",
+        title: voteValue > 0 ? "Nuevo voto positivo en tu comentario" : "Tu comentario ha recibido un voto negativo",
+        body:
+          voteValue > 0
+            ? "Alguien ha valorado positivamente uno de tus comentarios."
+            : "Un usuario ha valorado negativamente uno de tus comentarios.",
         data: {
           commentId: Number(updated.id),
-          debateId: Number(updated.debate_id),
-          voterUserId: Number(req.auth.userId)
+          debateId: Number(updated.debateId),
+          voterUserId: Number(req.auth.userId),
+          value: voteValue
         }
       });
 
@@ -107,12 +117,16 @@ export async function voteCommentController(req, res, next) {
 
     res.json({
       id: Number(updated.id),
-      debateId: Number(updated.debate_id),
-      userId: Number(updated.user_id),
-      parentId: updated.parent_id ? Number(updated.parent_id) : null,
+      debateId: Number(updated.debateId),
+      userId: Number(updated.userId),
+      username: updated.username,
+      parentId: updated.parentId,
       content: updated.content,
-      createdAt: updated.created_at,
-      score: Number(updated.score)
+      createdAt: updated.createdAt,
+      score: Number(updated.score),
+      upvotes: Number(updated.upvotes || 0),
+      downvotes: Number(updated.downvotes || 0),
+      currentUserVote: Number(updated.currentUserVote || 0)
     });
   } catch (error) {
     if (error.code === "COMMENT_NOT_FOUND") {

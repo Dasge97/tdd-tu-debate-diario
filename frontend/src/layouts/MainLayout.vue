@@ -4,6 +4,8 @@ import { useRouter } from "vue-router";
 import { useUsersStore } from "@/stores/users";
 import { useFavoritesStore } from "@/stores/favorites";
 import { useNotificationsStore } from "@/stores/notifications";
+import { useToastStore } from "@/stores/toast";
+import { useModalStore } from "@/stores/modal";
 import ChatDock from "@/components/ChatDock.vue";
 
 const leftDrawerOpen = ref(false);
@@ -17,6 +19,8 @@ const router = useRouter();
 const usersStore = useUsersStore();
 const favoritesStore = useFavoritesStore();
 const notificationsStore = useNotificationsStore();
+const toastStore = useToastStore();
+const modalStore = useModalStore();
 
 const openAuthDialog = (mode = "login") => {
   authMode.value = mode;
@@ -31,14 +35,20 @@ const submitAuth = async () => {
     password: form.value.password
   };
 
-  if (authMode.value === "register") {
-    await usersStore.register(payload);
-  } else {
-    await usersStore.login({ email: payload.email, password: payload.password });
-  }
+  try {
+    if (authMode.value === "register") {
+      await usersStore.register(payload);
+      toastStore.success("Tu cuenta se ha creado correctamente.");
+    } else {
+      await usersStore.login({ email: payload.email, password: payload.password });
+      toastStore.success("Has iniciado sesión.");
+    }
 
-  authDialog.value = false;
-  form.value.password = "";
+    authDialog.value = false;
+    form.value.password = "";
+  } catch (error) {
+    toastStore.error(usersStore.authError || error?.response?.data?.error || "No se pudo completar la autenticación.");
+  }
 };
 
 const openProfile = async () => {
@@ -78,6 +88,10 @@ watch(
 );
 
 const submitSearch = () => {
+  if (!searchText.value?.trim()) {
+    toastStore.info("Escribe algo para buscar debates.");
+    return;
+  }
   router.push({ name: "buscar", query: { q: searchText.value || undefined } });
 };
 
@@ -100,6 +114,19 @@ const openNotifications = async () => {
 const markAllNotificationsRead = async () => {
   if (!usersStore.isAuthenticated) return;
   await notificationsStore.markAllRead();
+  toastStore.success("Notificaciones marcadas como leídas.");
+};
+
+const handleLogout = async () => {
+  const confirmed = await modalStore.confirm({
+    title: "Cerrar sesión",
+    message: "Se cerrará tu sesión actual en Tu Debate Diario.",
+    confirmLabel: "Salir",
+    cancelLabel: "Cancelar"
+  });
+  if (!confirmed) return;
+  await usersStore.logout();
+  toastStore.info("Has cerrado sesión.");
 };
 </script>
 
@@ -131,6 +158,14 @@ const markAllNotificationsRead = async () => {
         </div>
 
         <div class="header-right">
+          <q-btn
+            v-if="usersStore.isAdmin"
+            flat
+            color="dark"
+            label="Admin"
+            class="q-mr-sm header-action-btn"
+            @click="router.push({ name: 'admin' })"
+          />
           <q-btn
             v-if="usersStore.isAuthenticated"
             color="deep-orange-7"
@@ -208,7 +243,7 @@ const markAllNotificationsRead = async () => {
             color="negative"
             label="Salir"
             class="header-action-btn"
-            @click="usersStore.logout"
+            @click="handleLogout"
           />
         </div>
       </q-toolbar>
@@ -248,6 +283,10 @@ const markAllNotificationsRead = async () => {
         <q-item clickable v-ripple class="drawer-item" @click="router.push({ name: 'amigos' })">
           <q-item-section avatar><q-icon name="group" /></q-item-section>
           <q-item-section>Amigos</q-item-section>
+        </q-item>
+        <q-item v-if="usersStore.isAdmin" clickable v-ripple class="drawer-item" @click="router.push({ name: 'admin' })">
+          <q-item-section avatar><q-icon name="admin_panel_settings" /></q-item-section>
+          <q-item-section>Administración</q-item-section>
         </q-item>
       </q-list>
     </q-drawer>
@@ -295,6 +334,7 @@ const markAllNotificationsRead = async () => {
         <q-card-section v-if="usersStore.me">
           <div><strong>Usuario:</strong> {{ usersStore.me.username }}</div>
           <div><strong>Email:</strong> {{ usersStore.me.email }}</div>
+          <div><strong>Rol:</strong> {{ usersStore.me.role }}</div>
           <div><strong>Índice de criterio:</strong> {{ usersStore.me.reliabilityScore }}</div>
         </q-card-section>
         <q-card-actions align="right">

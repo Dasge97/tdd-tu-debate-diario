@@ -13,8 +13,12 @@ import favoritesRouter from "./routes/favorites.routes.js";
 import friendsRouter from "./routes/friends.routes.js";
 import chatRouter from "./routes/chat.routes.js";
 import notificationsRouter from "./routes/notifications.routes.js";
+import adminRouter from "./routes/admin.routes.js";
+import { ensureDebateAuthorSchema } from "./services/debates.service.js";
 import { ensureChatSchema } from "./services/chat.service.js";
 import { ensureNotificationsSchema } from "./services/notifications.service.js";
+import { ensureAdminSchema } from "./services/admin.service.js";
+import { ensureCommentVotingSchema } from "./services/comments.service.js";
 import { setupChatGateway } from "./realtime/chat.gateway.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -23,6 +27,7 @@ dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
 const app = express();
 const PORT = Number(process.env.APP_PORT || 3000);
+const uploadsDir = path.resolve(__dirname, "../uploads");
 
 app.use(
   cors({
@@ -30,6 +35,7 @@ app.use(
   })
 );
 app.use(express.json());
+app.use("/uploads", express.static(uploadsDir));
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true });
@@ -44,15 +50,25 @@ app.use("/api/favorites", favoritesRouter);
 app.use("/api/friends", friendsRouter);
 app.use("/api/chat", chatRouter);
 app.use("/api/notifications", notificationsRouter);
+app.use("/api/admin", adminRouter);
 
 app.use((err, _req, res, _next) => {
   console.error(err);
+  if (err?.message === "Solo se permiten imágenes JPG, PNG o WEBP.") {
+    return res.status(400).json({ error: err.message });
+  }
+  if (err?.code === "LIMIT_FILE_SIZE") {
+    return res.status(400).json({ error: "La imagen no puede superar 2 MB." });
+  }
   res.status(500).json({ error: "Error interno del servidor." });
 });
 
 const httpServer = createServer(app);
 
 async function startServer() {
+  await ensureAdminSchema();
+  await ensureDebateAuthorSchema();
+  await ensureCommentVotingSchema();
   await ensureChatSchema();
   await ensureNotificationsSchema();
   setupChatGateway(httpServer);

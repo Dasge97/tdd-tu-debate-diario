@@ -37,3 +37,11 @@ export function emitToUsers(userIds, payload) {
     emitToUser(userId, payload);
   }
 }
+
+export function getOnlineUsersCount() {
+  let total = 0;
+  for (const connections of userConnections.values()) {
+    total += connections.size > 0 ? 1 : 0;
+  }
+  return total;
+}

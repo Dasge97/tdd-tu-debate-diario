@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { chatService } from "@/services/chat.service";
 import { useNotificationsStore } from "@/stores/notifications";
+import { useToastStore } from "@/stores/toast";
 
 const normalizeMessage = (message) => ({
   id: Number(message.id),
@@ -22,6 +23,7 @@ export const useChatStore = defineStore("chat", {
     socket: null,
     error: "",
     panelOpen: false,
+    panelMinimized: false,
     onlineByUserId: {},
     typingByConversationId: {},
     reconnectTimer: null
@@ -47,6 +49,7 @@ export const useChatStore = defineStore("chat", {
       this.socket = null;
       this.error = "";
       this.panelOpen = false;
+      this.panelMinimized = false;
       this.onlineByUserId = {};
       this.typingByConversationId = {};
       if (this.reconnectTimer) {
@@ -62,6 +65,7 @@ export const useChatStore = defineStore("chat", {
     },
 
     connectSocket() {
+      const toastStore = useToastStore();
       const token = localStorage.getItem("tdd_token");
       if (!token || this.socket) return;
 
@@ -95,6 +99,7 @@ export const useChatStore = defineStore("chat", {
 
       socket.onerror = () => {
         this.error = "Error de conexión del chat.";
+        toastStore.error(this.error);
       };
 
       socket.onmessage = (event) => {
@@ -158,6 +163,7 @@ export const useChatStore = defineStore("chat", {
       await this.fetchConversations();
       this.activeConversationId = Number(conversation.id);
       this.panelOpen = true;
+      this.panelMinimized = false;
       await this.fetchMessages(conversation.id);
       return conversation;
     },

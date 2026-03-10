@@ -4,10 +4,12 @@ import { useRouter } from "vue-router";
 import { usersService } from "@/services/users.service";
 import { useUsersStore } from "@/stores/users";
 import { useFriendsStore } from "@/stores/friends";
+import { useToastStore } from "@/stores/toast";
 
 const router = useRouter();
 const usersStore = useUsersStore();
 const friendsStore = useFriendsStore();
+const toastStore = useToastStore();
 
 const query = ref("");
 const loading = ref(false);
@@ -45,6 +47,7 @@ const fetchUsers = async ({ q = "", all = false, requestedPage = 1 } = {}) => {
     await loadRelationStatuses();
   } catch (e) {
     error.value = e?.response?.data?.error || "No se pudieron cargar usuarios.";
+    toastStore.error(error.value);
   } finally {
     loading.value = false;
   }
@@ -93,10 +96,15 @@ const canSendRequest = (userId) => {
 
 const sendRequest = async (userId) => {
   if (!usersStore.isAuthenticated) {
-    error.value = "Inicia sesión para agregar amigos.";
+    toastStore.info("Inicia sesión para agregar amigos.");
     return;
   }
-  await friendsStore.sendRequest(userId);
+  try {
+    await friendsStore.sendRequest(userId);
+    toastStore.success("Solicitud de amistad enviada.");
+  } catch (error) {
+    toastStore.error(error?.response?.data?.error || "No se pudo enviar la solicitud.");
+  }
 };
 
 onMounted(showAllUsers);
@@ -139,7 +147,8 @@ onMounted(showAllUsers);
           <q-card-section class="row items-start no-wrap q-col-gutter-sm community-user-card-section">
             <div class="col-auto">
               <q-avatar size="34px" color="primary" text-color="white">
-                {{ (user.username || '?').slice(0, 1).toUpperCase() }}
+                <img v-if="user.avatarUrl" :src="user.avatarUrl" :alt="`Avatar de ${user.username}`" />
+                <span v-else>{{ (user.username || '?').slice(0, 1).toUpperCase() }}</span>
               </q-avatar>
             </div>
             <div class="col">

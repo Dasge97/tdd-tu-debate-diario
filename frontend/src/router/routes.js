@@ -8,6 +8,7 @@ import FriendsPage from "@/pages/FriendsPage.vue";
 import ProfilePage from "@/pages/ProfilePage.vue";
 import ProposeDebatePage from "@/pages/ProposeDebatePage.vue";
 import CommunityPage from "@/pages/CommunityPage.vue";
+import AdminPage from "@/pages/AdminPage.vue";
 
 export const routes = [
   {
@@ -22,7 +23,8 @@ export const routes = [
       { path: "comunidad", name: "comunidad", component: CommunityPage },
       { path: "amigos", name: "amigos", component: FriendsPage },
       { path: "proponer-debate", name: "proponer-debate", component: ProposeDebatePage },
-      { path: "perfil/:username", name: "perfil", component: ProfilePage, props: true }
+      { path: "perfil/:username", name: "perfil", component: ProfilePage, props: true },
+      { path: "admin", name: "admin", component: AdminPage, meta: { requiresAdmin: true } }
     ]
   }
 ];

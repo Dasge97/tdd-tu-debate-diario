@@ -29,3 +29,4 @@ Thumbs.db
 
 # Docker volumes (if mapped locally)
 data/
+backend/uploads/

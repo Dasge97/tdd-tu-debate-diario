@@ -1,12 +1,23 @@
 import { query } from "../database/db.js";
 
 const toPercent = (value, total) => (total > 0 ? Math.round((value * 100) / total) : 0);
+const parseJsonArray = (value, fallback = []) => {
+  if (!value) return fallback;
+  if (Array.isArray(value)) return value;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : fallback;
+  } catch (_error) {
+    return fallback;
+  }
+};
 
 const mapDebate = (row) => {
   const support = Number(row.support_count || 0);
   const oppose = Number(row.oppose_count || 0);
   const neutral = Number(row.neutral_count || 0);
   const total = support + oppose + neutral;
+  const authorType = row.author_type || "ai";
 
   return {
     id: Number(row.id),
@@ -25,7 +36,32 @@ const mapDebate = (row) => {
       support,
       oppose,
       neutral
-    }
+    },
+    author:
+      authorType === "user" && row.created_by
+        ? {
+            type: "user",
+            id: Number(row.created_by),
+            name: row.author_username || "Usuario",
+            label: row.author_user_tagline || "Miembro de la comunidad",
+            bio: row.author_user_bio || "",
+            avatarUrl: row.author_user_avatar_url || "",
+            reliabilityScore: Number(row.author_user_reliability_score || 0),
+            location: row.author_user_location || "",
+            focus: row.author_user_tagline || "Autor de la comunidad",
+            traits: parseJsonArray(row.author_user_traits_json, [])
+          }
+        : {
+            type: "ai",
+            id: null,
+            name: row.ai_persona_name || "Redacción TDD",
+            label: row.ai_persona_label || "Analista editorial sintético",
+            bio:
+              row.ai_persona_bio ||
+              "Una voz editorial creada para proponer debates diarios con un enfoque consistente y legible.",
+            focus: row.ai_persona_focus || "Observa la actualidad desde una mirada editorial concreta.",
+            traits: parseJsonArray(row.ai_persona_traits_json, [])
+          }
   };
 };
 
@@ -37,17 +73,91 @@ const baseSelect = `
     d.created_at,
     d.day_date,
     d.created_by,
+    d.author_type,
+    d.ai_persona_name,
+    d.ai_persona_label,
+    d.ai_persona_bio,
+    d.ai_persona_focus,
+    d.ai_persona_traits_json,
     COUNT(DISTINCT c.id) AS comment_count,
     COUNT(DISTINCT CASE WHEN p.position = 'support' THEN p.id END) AS support_count,
     COUNT(DISTINCT CASE WHEN p.position = 'oppose' THEN p.id END) AS oppose_count,
-    COUNT(DISTINCT CASE WHEN p.position = 'neutral' THEN p.id END) AS neutral_count
+    COUNT(DISTINCT CASE WHEN p.position = 'neutral' THEN p.id END) AS neutral_count,
+    au.username AS author_username,
+    au.bio AS author_user_bio,
+    au.avatar_url AS author_user_avatar_url,
+    au.location AS author_user_location,
+    au.reliability_score AS author_user_reliability_score,
+    au.profile_tagline AS author_user_tagline,
+    au.profile_traits_json AS author_user_traits_json
   FROM debates d
   LEFT JOIN comments c ON c.debate_id = d.id
   LEFT JOIN positions p ON p.debate_id = d.id
+  LEFT JOIN users au ON au.id = d.created_by
 `;
 
+export async function ensureDebateAuthorSchema() {
+  await query(`
+    ALTER TABLE debates
+    ADD COLUMN author_type ENUM('ai', 'user') NOT NULL DEFAULT 'ai'
+  `).catch(() => {});
+
+  await query(`
+    ALTER TABLE debates
+    ADD COLUMN ai_persona_name VARCHAR(120) NULL
+  `).catch(() => {});
+
+  await query(`
+    ALTER TABLE debates
+    ADD COLUMN ai_persona_label VARCHAR(160) NULL
+  `).catch(() => {});
+
+  await query(`
+    ALTER TABLE debates
+    ADD COLUMN ai_persona_bio VARCHAR(255) NULL
+  `).catch(() => {});
+
+  await query(`
+    ALTER TABLE debates
+    ADD COLUMN ai_persona_focus VARCHAR(180) NULL
+  `).catch(() => {});
+
+  await query(`
+    ALTER TABLE debates
+    ADD COLUMN ai_persona_traits_json JSON NULL
+  `).catch(() => {});
+
+  await query(`
+    ALTER TABLE users
+    ADD COLUMN profile_tagline VARCHAR(160) NULL
+  `).catch(() => {});
+
+  await query(`
+    ALTER TABLE users
+    ADD COLUMN profile_traits_json JSON NULL
+  `).catch(() => {});
+
+  await query(`
+    UPDATE debates
+    SET
+      author_type = COALESCE(author_type, 'ai'),
+      ai_persona_name = COALESCE(ai_persona_name, 'Redacción TDD'),
+      ai_persona_label = COALESCE(ai_persona_label, 'Analista editorial sintético'),
+      ai_persona_bio = COALESCE(ai_persona_bio, 'Una voz editorial creada para proponer debates diarios con un enfoque consistente y legible.'),
+      ai_persona_focus = COALESCE(ai_persona_focus, 'Observa la actualidad desde una mirada editorial concreta.'),
+      ai_persona_traits_json = COALESCE(ai_persona_traits_json, JSON_ARRAY('didáctica', 'contextual', 'serena'))
+  `).catch(() => {});
+
+  await query(`
+    UPDATE users
+    SET
+      profile_tagline = COALESCE(profile_tagline, 'Miembro de la comunidad'),
+      profile_traits_json = COALESCE(profile_traits_json, JSON_ARRAY())
+  `).catch(() => {});
+}
+
 export async function getTodayDebates() {
-  const rows = await query(
+  let rows = await query(
     `${baseSelect}
       WHERE d.day_date = CURDATE()
       GROUP BY d.id
@@ -55,6 +165,22 @@ export async function getTodayDebates() {
       LIMIT 5
     `
   );
+
+  // En desarrollo puede no haber debates para la fecha actual; en ese caso
+  // mostramos el ultimo bloque diario disponible para no dejar la home vacia.
+  if (rows.length === 0) {
+    rows = await query(
+      `${baseSelect}
+        WHERE d.day_date = (
+          SELECT MAX(d2.day_date)
+          FROM debates d2
+        )
+        GROUP BY d.id
+        ORDER BY d.created_at ASC
+        LIMIT 5
+      `
+    );
+  }
 
   return rows.map(mapDebate);
 }
